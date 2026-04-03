@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rental Manager</title>
+
+<link rel="manifest" href="manifest.json">
+
+<style>
+body { font-family: Arial; padding: 10px; }
+.house { margin-bottom: 20px; }
+.room {
+  display: inline-block;
+  padding: 15px;
+  margin: 5px;
+  border-radius: 10px;
+  color: white;
+  cursor: pointer;
+  white-space: pre-line;
+}
+.available { background: green; }
+.paid { background: blue; }
+.late { background: red; }
+</style>
+</head>
+
+<body>
+
+<h2>🏠 Rental Manager</h2>
+<h3 id="total">💰 Total: RM0</h3>
+<div id="app"></div>
+
+<script>
+
+let houses = JSON.parse(localStorage.getItem("houses")) || {
+  "Ampang_House_1": [{},{},{},{}],
+  "Ampang_House_2": [{},{},{},{}],
+  "Ampang_House_3": [{},{},{}],
+  "Gopeng_House": [{},{},{}],
+  "Station18_House": [{},{},{},{}]
+};
+
+function save() {
+  localStorage.setItem("houses", JSON.stringify(houses));
+}
+
+function isLate(room) {
+  if (!room.due || room.paid) return false;
+  let today = new Date().getDate();
+  return today > room.due;
+}
+
+function render() {
+  let app = document.getElementById("app");
+  app.innerHTML = "";
+  let total = 0;
+
+  for (let house in houses) {
+    let div = document.createElement("div");
+    div.className = "house";
+
+    let title = document.createElement("h3");
+    title.innerText = house;
+    div.appendChild(title);
+
+    houses[house].forEach((room, i) => {
+      let btn = document.createElement("div");
+      let occupied = room.rent > 0;
+
+      if (!occupied) {
+        btn.className = "room available";
+        btn.innerText = "Room " + (i+1);
+      } else {
+        let late = isLate(room);
+        btn.className = "room " + (late ? "late" : "paid");
+
+        btn.innerText =
+          "Room " + (i+1) +
+          "\\n👤 " + room.name +
+          "\\n📞 " + room.phone +
+          "\\n💰 RM" + room.rent +
+          "\\n📅 Due: " + room.due +
+          (room.paid ? "\\n✅ PAID" : (late ? "\\n⚠️ LATE" : "\\n⏳ WAITING"));
+
+        total += room.rent;
+      }
+
+      btn.onclick = () => {
+        if (!occupied) {
+          let name = prompt("Tenant name:");
+          let phone = prompt("Phone:");
+          let rent = prompt("Rent (RM):");
+          let due = prompt("Due day (1-31):");
+
+          if (name && rent && due) {
+            houses[house][i] = {
+              name: name,
+              phone: phone,
+              rent: parseFloat(rent),
+              due: parseInt(due),
+              paid: false
+            };
+          }
+        } else {
+          let action = prompt("1=Paid\\n2=Unpaid\\n3=Remove");
+
+          if (action == "1") room.paid = true;
+          if (action == "2") room.paid = false;
+          if (action == "3") houses[house][i] = {};
+        }
+
+        save();
+        render();
+      };
+
+      div.appendChild(btn);
+    });
+
+    app.appendChild(div);
+  }
+
+  document.getElementById("total").innerText = "💰 Total: RM" + total;
+}
+
+render();
+
+</script>
+
+</body>
+</html>
