@@ -7,29 +7,35 @@
 <style>
 body { font-family: Arial; padding: 10px; }
 
-.house { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+.house {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 10px;
+}
 
 .room {
-  display: inline-block;
-  padding: 12px;
-  margin: 5px;
-  border-radius: 10px;
-  color: white;
-  cursor: pointer;
+  display:inline-block;
+  padding:10px;
+  margin:5px;
+  border-radius:8px;
+  color:white;
+  cursor:pointer;
   white-space: pre-line;
 }
 
-.available { background: green; }
-.paid { background: blue; }
-.late { background: red; }
+.available { background:green; }
+.paid { background:blue; }
+.late { background:red; }
 
-button { padding: 8px; margin: 5px; }
-
+button {
+  padding:6px;
+  margin:4px;
+}
 .report {
-  background: #f5f5f5;
-  padding: 10px;
-  margin: 10px 0;
-  border-radius: 8px;
+  background:#f4f4f4;
+  padding:10px;
+  margin:10px 0;
+  border-radius:8px;
 }
 </style>
 </head>
@@ -41,42 +47,37 @@ button { padding: 8px; margin: 5px; }
 <button onclick="addHouse()">➕ Add House</button>
 
 <div id="summary" class="report"></div>
-<div id="analysis" class="report"></div>
 
 <div id="app"></div>
 
 <script>
 
-let houses = JSON.parse(localStorage.getItem("houses")) || {};
-let contracts = JSON.parse(localStorage.getItem("contracts")) || {};
+let houses = JSON.parse(localStorage.getItem("houses") || "{}");
 
-function save() {
+function save(){
   localStorage.setItem("houses", JSON.stringify(houses));
-  localStorage.setItem("contracts", JSON.stringify(contracts));
 }
 
-function isLate(t) {
-  if (!t.due || t.paid) return false;
-  let today = new Date().getDate();
-  return today > t.due;
-}
+function addHouse(){
+  let name = prompt("House name");
+  let type = prompt("1 = Rooms / 2 = Whole Unit");
 
-function addHouse() {
-  let name = prompt("House name:");
-  let type = prompt("1 = Rooms\n2 = Whole Unit");
+  if(!name) return;
 
-  if (!name) return;
+  if(type == "1"){
+    let n = prompt("Number of rooms");
 
-  if (type == "1") {
-    let rooms = prompt("Number of rooms:");
     houses[name] = {
-      type: "room",
-      data: Array(parseInt(rooms)).fill({})
+      type:"room",
+      data: Array(parseInt(n)).fill({}),
+      expenses:[]
     };
+
   } else {
     houses[name] = {
-      type: "whole",
-      data: {}
+      type:"whole",
+      data:{},
+      expenses:[]
     };
   }
 
@@ -84,30 +85,34 @@ function addHouse() {
   render();
 }
 
-function deleteHouse(name) {
-  if (confirm("Delete " + name + "?")) {
+function deleteHouse(name){
+  if(confirm("Delete " + name + "?")){
     delete houses[name];
-    delete contracts[name];
     save();
     render();
   }
 }
 
-function render() {
+function isLate(t){
+  if(!t || !t.due || t.paid) return false;
+  let today = new Date().getDate();
+  return today > t.due;
+}
+
+function render(){
+
   let app = document.getElementById("app");
   let summary = document.getElementById("summary");
-  let analysis = document.getElementById("analysis");
 
   app.innerHTML = "";
   summary.innerHTML = "";
-  analysis.innerHTML = "";
 
-  let total = 0;
-
+  let totalIncome = 0;
+  let totalExpense = 0;
   let roomIncome = 0;
   let wholeIncome = 0;
 
-  for (let h in houses) {
+  for(let h in houses){
 
     let house = houses[h];
 
@@ -119,65 +124,106 @@ function render() {
     title.onclick = () => deleteHouse(h);
     div.appendChild(title);
 
-    // 📑 CONTRACT INFO
-    let c = contracts[h] || {};
-    let contractText = document.createElement("div");
-    contractText.innerHTML =
-      "📑 Start: " + (c.start || "-") +
-      "<br>📅 End: " + (c.end || "-");
+    // ➕ EXPENSE BUTTON
+    let expBtn = document.createElement("button");
+    expBtn.innerText = "➕ Add Expense";
+    expBtn.onclick = () => {
 
-    div.appendChild(contractText);
+      let desc = prompt("Expense description");
+      let amount = prompt("Amount RM");
+
+      if(!house.expenses) house.expenses = [];
+
+      if(desc && amount){
+        house.expenses.push({
+          desc,
+          amount: parseFloat(amount),
+          date: new Date().toLocaleDateString()
+        });
+
+        save();
+        render();
+      }
+    };
+
+    div.appendChild(expBtn);
+
+    // 💸 SHOW EXPENSES
+    let expTotal = 0;
+
+    if(house.expenses && house.expenses.length){
+
+      let expBox = document.createElement("div");
+      expBox.innerHTML = "<b>💸 Expenses:</b><br>";
+
+      house.expenses.forEach(e=>{
+        expTotal += e.amount;
+        expBox.innerHTML +=
+          "• " + e.desc + " - RM" + e.amount +
+          " (" + e.date + ")<br>";
+      });
+
+      expBox.innerHTML += "<b>Total: RM" + expTotal + "</b>";
+      div.appendChild(expBox);
+    }
+
+    totalExpense += expTotal;
 
     // 🏠 ROOM MODE
-    if (house.type == "room") {
+    if(house.type == "room"){
 
-      house.data.forEach((r, i) => {
+      house.data.forEach((r,i)=>{
 
         let btn = document.createElement("div");
 
-        if (!r.rent) {
+        if(!r.rent){
           btn.className = "room available";
           btn.innerText = "Room " + (i+1);
         } else {
+
           let late = isLate(r);
-          btn.className = "room " + (late ? "late" : "paid");
+          btn.className = "room " + (late ? "late":"paid");
 
           btn.innerText =
-            "Room " + (i+1) +
-            "\n👤 " + r.name +
+            "👤 " + r.name +
+            "\n📞 " + r.phone +
             "\n💰 RM" + r.rent +
-            "\n📅 " + r.due +
-            (r.paid ? "\n✅" : (late ? "\n⚠️ LATE" : "\n⏳"));
+            "\n📅 Start: " + r.start +
+            "\n📆 Due: " + r.due +
+            (r.paid ? "\n✅ Paid" : "\n⏳ Unpaid");
 
-          if (r.paid) roomIncome += r.rent;
+          if(r.paid) roomIncome += r.rent;
         }
 
-        btn.onclick = () => {
+        btn.onclick = ()=>{
 
-          if (!r.rent) {
-            let name = prompt("Tenant name:");
-            let rent = prompt("Rent:");
-            let due = prompt("Due day:");
+          if(!r.rent){
 
-            if (name && rent && due) {
+            let name = prompt("Tenant name");
+            let phone = prompt("Phone");
+            let rent = prompt("Rent");
+            let start = prompt("Start date");
+            let due = prompt("Due day");
+
+            if(name && phone && rent && due){
+
               house.data[i] = {
-                name, rent: parseFloat(rent),
+                name,
+                phone,
+                rent: parseFloat(rent),
+                start,
                 due: parseInt(due),
-                paid: false
-              };
-
-              let start = new Date().toLocaleDateString();
-              contracts[h] = {
-                start: start,
-                end: "Active"
+                paid:false
               };
             }
+
           } else {
+
             let a = prompt("1=Paid\n2=Unpaid\n3=Remove");
 
-            if (a == "1") r.paid = true;
-            if (a == "2") r.paid = false;
-            if (a == "3") house.data[i] = {};
+            if(a=="1") r.paid=true;
+            if(a=="2") r.paid=false;
+            if(a=="3") house.data[i]={};
           }
 
           save();
@@ -186,57 +232,64 @@ function render() {
 
         div.appendChild(btn);
       });
+
     }
 
     // 🏠 WHOLE UNIT
-    else {
+    else{
 
       let t = house.data;
+
       let btn = document.createElement("div");
 
-      if (!t.rent) {
+      if(!t.rent){
         btn.className = "room available";
         btn.innerText = "Whole Unit";
       } else {
 
         let late = isLate(t);
-        btn.className = "room " + (late ? "late" : "paid");
+        btn.className = "room " + (late ? "late":"paid");
 
         btn.innerText =
-          "Whole Unit" +
-          "\n👤 " + t.name +
+          "👤 " + t.name +
+          "\n📞 " + t.phone +
           "\n💰 RM" + t.rent +
-          "\n📅 " + t.due +
-          (t.paid ? "\n✅" : (late ? "\n⚠️ LATE" : "\n⏳"));
+          "\n📅 Start: " + t.start +
+          "\n📆 Due: " + t.due +
+          (t.paid ? "\n✅ Paid" : "\n⏳ Unpaid");
 
-        if (t.paid) wholeIncome += t.rent;
+        if(t.paid) wholeIncome += t.rent;
       }
 
-      btn.onclick = () => {
+      btn.onclick = ()=>{
 
-        if (!t.rent) {
-          let name = prompt("Tenant:");
-          let rent = prompt("Rent:");
-          let due = prompt("Due day:");
+        if(!t.rent){
 
-          if (name && rent && due) {
+          let name = prompt("Tenant");
+          let phone = prompt("Phone");
+          let rent = prompt("Rent");
+          let start = prompt("Start date");
+          let due = prompt("Due day");
+
+          if(name && phone && rent && due){
+
             house.data = {
-              name, rent: parseFloat(rent),
+              name,
+              phone,
+              rent: parseFloat(rent),
+              start,
               due: parseInt(due),
-              paid: false
-            };
-
-            contracts[h] = {
-              start: new Date().toLocaleDateString(),
-              end: "Active"
+              paid:false
             };
           }
+
         } else {
+
           let a = prompt("1=Paid\n2=Unpaid\n3=Remove");
 
-          if (a == "1") t.paid = true;
-          if (a == "2") t.paid = false;
-          if (a == "3") house.data = {};
+          if(a=="1") t.paid=true;
+          if(a=="2") t.paid=false;
+          if(a=="3") house.data={};
         }
 
         save();
@@ -249,20 +302,17 @@ function render() {
     app.appendChild(div);
   }
 
-  // 📊 SUMMARY
-  summary.innerHTML =
-    "📊 Room Income: RM" + roomIncome +
-    "<br>🏠 Whole Unit Income: RM" + wholeIncome +
-    "<br>💰 Total: RM" + (roomIncome + wholeIncome);
+  totalIncome = roomIncome + wholeIncome;
 
-  // ⚖️ ANALYSIS
-  if (roomIncome > wholeIncome) {
-    analysis.innerHTML = "📈 分房更赚钱";
-  } else if (wholeIncome > roomIncome) {
-    analysis.innerHTML = "📈 整租更赚钱";
-  } else {
-    analysis.innerHTML = "⚖️ 两者差不多";
-  }
+  let profit = totalIncome - totalExpense;
+
+  summary.innerHTML =
+    "📊 Income: RM" + totalIncome +
+    "<br>💸 Expense: RM" + totalExpense +
+    "<br>📈 Profit: RM" + profit +
+    "<br><br>🏠 Room Income: RM" + roomIncome +
+    "<br>🏠 Whole Income: RM" + wholeIncome;
+
 }
 
 render();
