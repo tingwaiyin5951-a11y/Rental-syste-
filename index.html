@@ -3,7 +3,6 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Rental Manager</title>
-
 <link rel="manifest" href="manifest.json">
 
 <style>
@@ -21,24 +20,25 @@ body { font-family: Arial; padding: 10px; }
 .available { background: green; }
 .paid { background: blue; }
 .late { background: red; }
+button { padding: 10px; margin: 5px; }
 </style>
 </head>
 
 <body>
 
 <h2>🏠 Rental Manager</h2>
+
+<button onclick="addHouse()">➕ Add House</button>
+
 <h3 id="total">💰 Total: RM0</h3>
+<div id="report"></div>
+
 <div id="app"></div>
 
 <script>
 
-let houses = JSON.parse(localStorage.getItem("houses")) || {
-  "Ampang_House_1": [{},{},{},{}],
-  "Ampang_House_2": [{},{},{},{}],
-  "Ampang_House_3": [{},{},{}],
-  "Gopeng_House": [{},{},{}],
-  "Station18_House": [{},{},{},{}]
-};
+let houses = JSON.parse(localStorage.getItem("houses")) || {};
+let lastReset = localStorage.getItem("lastReset");
 
 function save() {
   localStorage.setItem("houses", JSON.stringify(houses));
@@ -50,18 +50,64 @@ function isLate(room) {
   return today > room.due;
 }
 
+function monthlyReset() {
+  let now = new Date();
+  let month = now.getMonth();
+
+  if (lastReset != month) {
+    for (let house in houses) {
+      houses[house].forEach(room => {
+        if (room.rent) {
+          room.paid = false;
+        }
+      });
+    }
+    localStorage.setItem("lastReset", month);
+    save();
+  }
+}
+
+function addHouse() {
+  let name = prompt("House name:");
+  let rooms = prompt("Number of rooms:");
+
+  if (name && rooms) {
+    houses[name] = Array(parseInt(rooms)).fill({});
+    save();
+    render();
+  }
+}
+
+function deleteHouse(name) {
+  if (confirm("Delete " + name + "?")) {
+    delete houses[name];
+    save();
+    render();
+  }
+}
+
 function render() {
+  monthlyReset(); // 🔥 自动每月reset
+
   let app = document.getElementById("app");
+  let report = document.getElementById("report");
+
   app.innerHTML = "";
+  report.innerHTML = "";
+
   let total = 0;
+  let houseIncome = {};
 
   for (let house in houses) {
     let div = document.createElement("div");
     div.className = "house";
 
     let title = document.createElement("h3");
-    title.innerText = house;
+    title.innerText = house + " ❌";
+    title.onclick = () => deleteHouse(house);
     div.appendChild(title);
+
+    let houseTotal = 0;
 
     houses[house].forEach((room, i) => {
       let btn = document.createElement("div");
@@ -77,25 +123,23 @@ function render() {
         btn.innerText =
           "Room " + (i+1) +
           "\\n👤 " + room.name +
-          "\\n📞 " + room.phone +
           "\\n💰 RM" + room.rent +
-          "\\n📅 Due: " + room.due +
-          (room.paid ? "\\n✅ PAID" : (late ? "\\n⚠️ LATE" : "\\n⏳ WAITING"));
+          "\\n📅 " + room.due +
+          (room.paid ? "\\n✅" : (late ? "\\n⚠️ LATE" : "\\n⏳"));
 
         total += room.rent;
+        houseTotal += room.rent;
       }
 
       btn.onclick = () => {
         if (!occupied) {
           let name = prompt("Tenant name:");
-          let phone = prompt("Phone:");
           let rent = prompt("Rent (RM):");
-          let due = prompt("Due day (1-31):");
+          let due = prompt("Due day:");
 
           if (name && rent && due) {
             houses[house][i] = {
               name: name,
-              phone: phone,
               rent: parseFloat(rent),
               due: parseInt(due),
               paid: false
@@ -116,7 +160,24 @@ function render() {
       div.appendChild(btn);
     });
 
+    houseIncome[house] = houseTotal;
     app.appendChild(div);
+  }
+
+  // 📊 收入分析
+  let topHouse = "";
+  let max = 0;
+
+  for (let h in houseIncome) {
+    report.innerHTML += h + ": RM" + houseIncome[h] + "<br>";
+    if (houseIncome[h] > max) {
+      max = houseIncome[h];
+      topHouse = h;
+    }
+  }
+
+  if (topHouse) {
+    report.innerHTML += "<br>🔥 Top: " + topHouse;
   }
 
   document.getElementById("total").innerText = "💰 Total: RM" + total;
