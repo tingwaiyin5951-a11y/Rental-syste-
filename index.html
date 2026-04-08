@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>房东系统 Pro</title>
+<title>房东管理系统</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 body{font-family:Arial;padding:20px}
@@ -12,7 +12,7 @@ button{margin:3px}
 
 <body>
 
-<h2>🏠 房东管理系统 Pro</h2>
+<h2>🏠 房东管理系统</h2>
 
 <input id="houseName" placeholder="房名">
 <button onclick="addHouse()">➕ Add House</button>
@@ -22,27 +22,31 @@ button{margin:3px}
 <canvas id="chart" height="100"></canvas>
 
 <script>
-let houses = JSON.parse(localStorage.getItem("houses")||"{}");
 
-/* ------------------ 房源 ------------------ */
+let houses = JSON.parse(localStorage.getItem("houses") || "{}");
+
+/* ---------------- 房源 ---------------- */
 function addHouse(){
   let name = document.getElementById("houseName").value;
   if(!name) return;
 
-  houses[name] = {
-    rent: [],
-    expenses: [],
-    type: "whole"
-  };
+  if(!houses[name]){
+    houses[name] = {
+      rent: [],
+      expenses: []
+    };
+  }
 
   save();
   render();
 }
 
-/* ------------------ rent ------------------ */
+/* ---------------- rent ---------------- */
 function addRent(h){
   let amount = prompt("Rent amount");
-  let date = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0,10));
+  if(!amount) return;
+
+  let date = prompt("Date", new Date().toISOString().slice(0,10));
 
   houses[h].rent.push({
     amount: parseFloat(amount),
@@ -54,10 +58,19 @@ function addRent(h){
   render();
 }
 
-/* ------------------ expense ------------------ */
+function markPaid(h,i){
+  houses[h].rent[i].status = "paid";
+  save();
+  render();
+}
+
+/* ---------------- expense ---------------- */
 function addExpense(h){
   let desc = prompt("Description");
+  if(!desc) return;
+
   let amount = prompt("Amount");
+  if(!amount) return;
 
   houses[h].expenses.push({
     desc,
@@ -69,48 +82,54 @@ function addExpense(h){
   render();
 }
 
-/* ------------------ edit/delete expense ------------------ */
-function editExpense(h,i){
-  let e = houses[h].expenses[i];
-  let a = prompt("1 Edit / 2 Delete");
+/* ✏️ edit expense */
+function editExpense(houseName,index){
+  let e = houses[houseName].expenses[index];
 
-  if(a=="1"){
-    e.desc = prompt("desc",e.desc);
-    e.amount = parseFloat(prompt("amount",e.amount));
-  }
-  if(a=="2"){
-    houses[h].expenses.splice(i,1);
-  }
+  let desc = prompt("Description", e.desc);
+  let amount = prompt("Amount", e.amount);
 
-  save();
-  render();
+  if(desc !== null && amount !== null){
+    houses[houseName].expenses[index] = {
+      desc,
+      amount: parseFloat(amount),
+      date: e.date
+    };
+
+    save();
+    render();
+  }
 }
 
-/* ------------------ rent status ------------------ */
-function markPaid(h,i){
-  houses[h].rent[i].status="paid";
-  save();
-  render();
+/* 🗑 delete expense */
+function deleteExpense(houseName,index){
+  if(confirm("Delete this expense?")){
+    houses[houseName].expenses.splice(index,1);
+    save();
+    render();
+  }
 }
 
-/* ------------------ delete house ------------------ */
+/* ---------------- delete house ---------------- */
 function deleteHouse(h){
-  delete houses[h];
-  save();
-  render();
+  if(confirm("Delete this house?")){
+    delete houses[h];
+    save();
+    render();
+  }
 }
 
-/* ------------------ profit ------------------ */
+/* ---------------- profit ---------------- */
 function calc(h){
   let r = houses[h].rent.reduce((a,b)=>a+(b.amount||0),0);
   let e = houses[h].expenses.reduce((a,b)=>a+(b.amount||0),0);
-  return r-e;
+  return r - e;
 }
 
-/* ------------------ render ------------------ */
+/* ---------------- render ---------------- */
 function render(){
   let div = document.getElementById("houses");
-  div.innerHTML="";
+  div.innerHTML = "";
 
   Object.keys(houses).forEach(h=>{
 
@@ -123,19 +142,24 @@ function render(){
 
     let expHTML = house.expenses.map((e,i)=>
       `💸 ${e.desc} RM${e.amount} (${e.date})
-      <button onclick="editExpense('${h}',${i})">✏</button>`
+      <button onclick="editExpense('${h}',${i})">✏️</button>
+      <button onclick="deleteExpense('${h}',${i})">🗑</button>`
     ).join("<br>");
 
     div.innerHTML += `
     <div class="card">
       <h3>${h}</h3>
 
-      <b>Rent</b><br>${rentHTML || "No rent"}<br>
+      <b>Rent</b><br>
+      ${rentHTML || "No rent"}
+      <br>
       <button onclick="addRent('${h}')">+ Rent</button>
 
       <br><br>
 
-      <b>Expenses</b><br>${expHTML || "No expense"}<br>
+      <b>Expenses</b><br>
+      ${expHTML || "No expense"}
+      <br>
       <button onclick="addExpense('${h}')">+ Expense</button>
 
       <br><br>
@@ -152,7 +176,7 @@ function render(){
   drawChart();
 }
 
-/* ------------------ chart ------------------ */
+/* ---------------- chart ---------------- */
 function drawChart(){
   let labels = Object.keys(houses);
   let data = labels.map(h=>calc(h));
@@ -166,20 +190,13 @@ function drawChart(){
   });
 }
 
-/* ------------------ save ------------------ */
+/* ---------------- save ---------------- */
 function save(){
-  localStorage.setItem("houses",JSON.stringify(houses));
+  localStorage.setItem("houses", JSON.stringify(houses));
 }
 
-/* ------------------ auto monthly reset (demo) ------------------ */
-setInterval(()=>{
-  let d = new Date();
-  if(d.getDate()==1){
-    console.log("Monthly reset trigger (demo)");
-  }
-}, 86400000);
-
 render();
+
 </script>
 
 </body>
