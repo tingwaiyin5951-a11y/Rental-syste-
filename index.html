@@ -1,4 +1,61 @@
-<!DOCTYPE html>
+if (houses[house].whole) {
+  let div = document.createElement("div");
+  div.className = "house";
+
+  let title = document.createElement("h3");
+  title.innerText = house + " ❌";
+  title.onclick = () => deleteHouse(house);
+  div.appendChild(title);
+
+  let tenant = houses[house].tenant;
+  let btn = document.createElement("div");
+
+  if (!tenant.rent) {
+    btn.className = "room available";
+    btn.innerText = "Whole Unit";
+  } else {
+    let late = isLate(tenant);
+    btn.className = "room " + (late ? "late" : "paid");
+
+    btn.innerText =
+      "Whole Unit" +
+      "\\n👤 " + tenant.name +
+      "\\n💰 RM" + tenant.rent +
+      "\\n📅 " + tenant.due +
+      (tenant.paid ? "\\n✅" : (late ? "\\n⚠️ LATE" : "\\n⏳"));
+  }
+
+  btn.onclick = () => {
+    if (!tenant.rent) {
+      let name = prompt("Tenant name:");
+      let rent = prompt("Rent:");
+      let due = prompt("Due day:");
+
+      if (name && rent && due) {
+        houses[house].tenant = {
+          name,
+          rent: parseFloat(rent),
+          due: parseInt(due),
+          paid: false
+        };
+      }
+    } else {
+      let action = prompt("1=Paid\n2=Unpaid\n3=Remove");
+
+      if (action == "1") tenant.paid = true;
+      if (action == "2") tenant.paid = false;
+      if (action == "3") houses[house].tenant = {};
+    }
+
+    save();
+    render();
+  };
+
+  div.appendChild(btn);
+  app.appendChild(div);
+
+  continue;
+}<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -69,8 +126,22 @@ function monthlyReset() {
 
 function addHouse() {
   let name = prompt("House name:");
-  let rooms = prompt("Number of rooms:");
+  let type = prompt("1 = Rooms\n2 = Whole Unit");
 
+  if (type == "1") {
+    let rooms = prompt("Number of rooms:");
+    houses[name] = Array(parseInt(rooms)).fill({});
+  } 
+  else if (type == "2") {
+    houses[name] = {
+      whole: true,
+      tenant: {}
+    };
+  }
+
+  save();
+  render();
+}
   if (name && rooms) {
     houses[name] = Array(parseInt(rooms)).fill({});
     save();
