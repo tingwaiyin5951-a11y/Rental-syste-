@@ -1,322 +1,185 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rental Manager Pro</title>
-
+<title>房东系统 Pro</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body { font-family: Arial; padding: 10px; }
-
-.house {
-  margin-bottom: 20px;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 10px;
-}
-
-.room {
-  display:inline-block;
-  padding:10px;
-  margin:5px;
-  border-radius:8px;
-  color:white;
-  cursor:pointer;
-  white-space: pre-line;
-}
-
-.available { background:green; }
-.paid { background:blue; }
-.late { background:red; }
-
-button {
-  padding:6px;
-  margin:4px;
-}
-.report {
-  background:#f4f4f4;
-  padding:10px;
-  margin:10px 0;
-  border-radius:8px;
-}
+body{font-family:Arial;padding:20px}
+.card{border:1px solid #ddd;padding:10px;margin:10px 0}
+button{margin:3px}
 </style>
 </head>
 
 <body>
 
-<h2>🏠 Rental Manager PRO</h2>
+<h2>🏠 房东管理系统 Pro</h2>
 
+<input id="houseName" placeholder="房名">
 <button onclick="addHouse()">➕ Add House</button>
 
-<div id="summary" class="report"></div>
+<div id="houses"></div>
 
-<div id="app"></div>
+<canvas id="chart" height="100"></canvas>
 
 <script>
+let houses = JSON.parse(localStorage.getItem("houses")||"{}");
 
-let houses = JSON.parse(localStorage.getItem("houses") || "{}");
-
-function save(){
-  localStorage.setItem("houses", JSON.stringify(houses));
-}
-
+/* ------------------ 房源 ------------------ */
 function addHouse(){
-  let name = prompt("House name");
-  let type = prompt("1 = Rooms / 2 = Whole Unit");
-
+  let name = document.getElementById("houseName").value;
   if(!name) return;
 
-  if(type == "1"){
-    let n = prompt("Number of rooms");
+  houses[name] = {
+    rent: [],
+    expenses: [],
+    type: "whole"
+  };
 
-    houses[name] = {
-      type:"room",
-      data: Array(parseInt(n)).fill({}),
-      expenses:[]
-    };
+  save();
+  render();
+}
 
-  } else {
-    houses[name] = {
-      type:"whole",
-      data:{},
-      expenses:[]
-    };
+/* ------------------ rent ------------------ */
+function addRent(h){
+  let amount = prompt("Rent amount");
+  let date = prompt("Date (YYYY-MM-DD)", new Date().toISOString().slice(0,10));
+
+  houses[h].rent.push({
+    amount: parseFloat(amount),
+    date,
+    status: "unpaid"
+  });
+
+  save();
+  render();
+}
+
+/* ------------------ expense ------------------ */
+function addExpense(h){
+  let desc = prompt("Description");
+  let amount = prompt("Amount");
+
+  houses[h].expenses.push({
+    desc,
+    amount: parseFloat(amount),
+    date: new Date().toISOString().slice(0,10)
+  });
+
+  save();
+  render();
+}
+
+/* ------------------ edit/delete expense ------------------ */
+function editExpense(h,i){
+  let e = houses[h].expenses[i];
+  let a = prompt("1 Edit / 2 Delete");
+
+  if(a=="1"){
+    e.desc = prompt("desc",e.desc);
+    e.amount = parseFloat(prompt("amount",e.amount));
+  }
+  if(a=="2"){
+    houses[h].expenses.splice(i,1);
   }
 
   save();
   render();
 }
 
-function deleteHouse(name){
-  if(confirm("Delete " + name + "?")){
-    delete houses[name];
-    save();
-    render();
-  }
+/* ------------------ rent status ------------------ */
+function markPaid(h,i){
+  houses[h].rent[i].status="paid";
+  save();
+  render();
 }
 
-function isLate(t){
-  if(!t || !t.due || t.paid) return false;
-  let today = new Date().getDate();
-  return today > t.due;
+/* ------------------ delete house ------------------ */
+function deleteHouse(h){
+  delete houses[h];
+  save();
+  render();
 }
 
+/* ------------------ profit ------------------ */
+function calc(h){
+  let r = houses[h].rent.reduce((a,b)=>a+(b.amount||0),0);
+  let e = houses[h].expenses.reduce((a,b)=>a+(b.amount||0),0);
+  return r-e;
+}
+
+/* ------------------ render ------------------ */
 function render(){
+  let div = document.getElementById("houses");
+  div.innerHTML="";
 
-  let app = document.getElementById("app");
-  let summary = document.getElementById("summary");
-
-  app.innerHTML = "";
-  summary.innerHTML = "";
-
-  let totalIncome = 0;
-  let totalExpense = 0;
-  let roomIncome = 0;
-  let wholeIncome = 0;
-
-  for(let h in houses){
+  Object.keys(houses).forEach(h=>{
 
     let house = houses[h];
 
-    let div = document.createElement("div");
-    div.className = "house";
+    let rentHTML = house.rent.map((r,i)=>
+      `💰 RM${r.amount} - ${r.date} - ${r.status}
+      <button onclick="markPaid('${h}',${i})">✔</button>`
+    ).join("<br>");
 
-    let title = document.createElement("h3");
-    title.innerText = h + " ❌";
-    title.onclick = () => deleteHouse(h);
-    div.appendChild(title);
+    let expHTML = house.expenses.map((e,i)=>
+      `💸 ${e.desc} RM${e.amount} (${e.date})
+      <button onclick="editExpense('${h}',${i})">✏</button>`
+    ).join("<br>");
 
-    // ➕ EXPENSE BUTTON
-    let expBtn = document.createElement("button");
-    expBtn.innerText = "➕ Add Expense";
-    expBtn.onclick = () => {
+    div.innerHTML += `
+    <div class="card">
+      <h3>${h}</h3>
 
-      let desc = prompt("Expense description");
-      let amount = prompt("Amount RM");
+      <b>Rent</b><br>${rentHTML || "No rent"}<br>
+      <button onclick="addRent('${h}')">+ Rent</button>
 
-      if(!house.expenses) house.expenses = [];
+      <br><br>
 
-      if(desc && amount){
-        house.expenses.push({
-          desc,
-          amount: parseFloat(amount),
-          date: new Date().toLocaleDateString()
-        });
+      <b>Expenses</b><br>${expHTML || "No expense"}<br>
+      <button onclick="addExpense('${h}')">+ Expense</button>
 
-        save();
-        render();
-      }
-    };
+      <br><br>
 
-    div.appendChild(expBtn);
+      💹 Profit: RM ${calc(h)}
 
-    // 💸 SHOW EXPENSES
-    let expTotal = 0;
+      <br><br>
 
-    if(house.expenses && house.expenses.length){
+      <button onclick="deleteHouse('${h}')">🗑 Delete House</button>
+    </div>
+    `;
+  });
 
-      let expBox = document.createElement("div");
-      expBox.innerHTML = "<b>💸 Expenses:</b><br>";
-
-      house.expenses.forEach(e=>{
-        expTotal += e.amount;
-        expBox.innerHTML +=
-          "• " + e.desc + " - RM" + e.amount +
-          " (" + e.date + ")<br>";
-      });
-
-      expBox.innerHTML += "<b>Total: RM" + expTotal + "</b>";
-      div.appendChild(expBox);
-    }
-
-    totalExpense += expTotal;
-
-    // 🏠 ROOM MODE
-    if(house.type == "room"){
-
-      house.data.forEach((r,i)=>{
-
-        let btn = document.createElement("div");
-
-        if(!r.rent){
-          btn.className = "room available";
-          btn.innerText = "Room " + (i+1);
-        } else {
-
-          let late = isLate(r);
-          btn.className = "room " + (late ? "late":"paid");
-
-          btn.innerText =
-            "👤 " + r.name +
-            "\n📞 " + r.phone +
-            "\n💰 RM" + r.rent +
-            "\n📅 Start: " + r.start +
-            "\n📆 Due: " + r.due +
-            (r.paid ? "\n✅ Paid" : "\n⏳ Unpaid");
-
-          if(r.paid) roomIncome += r.rent;
-        }
-
-        btn.onclick = ()=>{
-
-          if(!r.rent){
-
-            let name = prompt("Tenant name");
-            let phone = prompt("Phone");
-            let rent = prompt("Rent");
-            let start = prompt("Start date");
-            let due = prompt("Due day");
-
-            if(name && phone && rent && due){
-
-              house.data[i] = {
-                name,
-                phone,
-                rent: parseFloat(rent),
-                start,
-                due: parseInt(due),
-                paid:false
-              };
-            }
-
-          } else {
-
-            let a = prompt("1=Paid\n2=Unpaid\n3=Remove");
-
-            if(a=="1") r.paid=true;
-            if(a=="2") r.paid=false;
-            if(a=="3") house.data[i]={};
-          }
-
-          save();
-          render();
-        };
-
-        div.appendChild(btn);
-      });
-
-    }
-
-    // 🏠 WHOLE UNIT
-    else{
-
-      let t = house.data;
-
-      let btn = document.createElement("div");
-
-      if(!t.rent){
-        btn.className = "room available";
-        btn.innerText = "Whole Unit";
-      } else {
-
-        let late = isLate(t);
-        btn.className = "room " + (late ? "late":"paid");
-
-        btn.innerText =
-          "👤 " + t.name +
-          "\n📞 " + t.phone +
-          "\n💰 RM" + t.rent +
-          "\n📅 Start: " + t.start +
-          "\n📆 Due: " + t.due +
-          (t.paid ? "\n✅ Paid" : "\n⏳ Unpaid");
-
-        if(t.paid) wholeIncome += t.rent;
-      }
-
-      btn.onclick = ()=>{
-
-        if(!t.rent){
-
-          let name = prompt("Tenant");
-          let phone = prompt("Phone");
-          let rent = prompt("Rent");
-          let start = prompt("Start date");
-          let due = prompt("Due day");
-
-          if(name && phone && rent && due){
-
-            house.data = {
-              name,
-              phone,
-              rent: parseFloat(rent),
-              start,
-              due: parseInt(due),
-              paid:false
-            };
-          }
-
-        } else {
-
-          let a = prompt("1=Paid\n2=Unpaid\n3=Remove");
-
-          if(a=="1") t.paid=true;
-          if(a=="2") t.paid=false;
-          if(a=="3") house.data={};
-        }
-
-        save();
-        render();
-      };
-
-      div.appendChild(btn);
-    }
-
-    app.appendChild(div);
-  }
-
-  totalIncome = roomIncome + wholeIncome;
-
-  let profit = totalIncome - totalExpense;
-
-  summary.innerHTML =
-    "📊 Income: RM" + totalIncome +
-    "<br>💸 Expense: RM" + totalExpense +
-    "<br>📈 Profit: RM" + profit +
-    "<br><br>🏠 Room Income: RM" + roomIncome +
-    "<br>🏠 Whole Income: RM" + wholeIncome;
-
+  drawChart();
 }
 
-render();
+/* ------------------ chart ------------------ */
+function drawChart(){
+  let labels = Object.keys(houses);
+  let data = labels.map(h=>calc(h));
 
+  new Chart(document.getElementById("chart"),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[{data}]
+    }
+  });
+}
+
+/* ------------------ save ------------------ */
+function save(){
+  localStorage.setItem("houses",JSON.stringify(houses));
+}
+
+/* ------------------ auto monthly reset (demo) ------------------ */
+setInterval(()=>{
+  let d = new Date();
+  if(d.getDate()==1){
+    console.log("Monthly reset trigger (demo)");
+  }
+}, 86400000);
+
+render();
 </script>
 
 </body>
