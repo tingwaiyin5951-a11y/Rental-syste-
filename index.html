@@ -1,227 +1,242 @@
-if (houses[house].whole) {
-  let div = document.createElement("div");
-  div.className = "house";
-
-  let title = document.createElement("h3");
-  title.innerText = house + " ❌";
-  title.onclick = () => deleteHouse(house);
-  div.appendChild(title);
-
-  let tenant = houses[house].tenant;
-  let btn = document.createElement("div");
-
-  if (!tenant.rent) {
-    btn.className = "room available";
-    btn.innerText = "Whole Unit";
-  } else {
-    let late = isLate(tenant);
-    btn.className = "room " + (late ? "late" : "paid");
-
-    btn.innerText =
-      "Whole Unit" +
-      "\\n👤 " + tenant.name +
-      "\\n💰 RM" + tenant.rent +
-      "\\n📅 " + tenant.due +
-      (tenant.paid ? "\\n✅" : (late ? "\\n⚠️ LATE" : "\\n⏳"));
-  }
-
-  btn.onclick = () => {
-    if (!tenant.rent) {
-      let name = prompt("Tenant name:");
-      let rent = prompt("Rent:");
-      let due = prompt("Due day:");
-
-      if (name && rent && due) {
-        houses[house].tenant = {
-          name,
-          rent: parseFloat(rent),
-          due: parseInt(due),
-          paid: false
-        };
-      }
-    } else {
-      let action = prompt("1=Paid\n2=Unpaid\n3=Remove");
-
-      if (action == "1") tenant.paid = true;
-      if (action == "2") tenant.paid = false;
-      if (action == "3") houses[house].tenant = {};
-    }
-
-    save();
-    render();
-  };
-
-  div.appendChild(btn);
-  app.appendChild(div);
-
-  continue;
-}<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rental Manager</title>
-<link rel="manifest" href="manifest.json">
+<title>Rental Manager Pro</title>
 
 <style>
 body { font-family: Arial; padding: 10px; }
-.house { margin-bottom: 20px; }
+
+.house { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+
 .room {
   display: inline-block;
-  padding: 15px;
+  padding: 12px;
   margin: 5px;
   border-radius: 10px;
   color: white;
   cursor: pointer;
   white-space: pre-line;
 }
+
 .available { background: green; }
 .paid { background: blue; }
 .late { background: red; }
-button { padding: 10px; margin: 5px; }
+
+button { padding: 8px; margin: 5px; }
+
+.report {
+  background: #f5f5f5;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 8px;
+}
 </style>
 </head>
 
 <body>
 
-<h2>🏠 Rental Manager</h2>
+<h2>🏠 Rental Manager PRO</h2>
 
 <button onclick="addHouse()">➕ Add House</button>
 
-<h3 id="total">💰 Total: RM0</h3>
-<div id="report"></div>
+<div id="summary" class="report"></div>
+<div id="analysis" class="report"></div>
 
 <div id="app"></div>
 
 <script>
 
 let houses = JSON.parse(localStorage.getItem("houses")) || {};
-let lastReset = localStorage.getItem("lastReset");
+let contracts = JSON.parse(localStorage.getItem("contracts")) || {};
 
 function save() {
   localStorage.setItem("houses", JSON.stringify(houses));
+  localStorage.setItem("contracts", JSON.stringify(contracts));
 }
 
-function isLate(room) {
-  if (!room.due || room.paid) return false;
+function isLate(t) {
+  if (!t.due || t.paid) return false;
   let today = new Date().getDate();
-  return today > room.due;
-}
-
-function monthlyReset() {
-  let now = new Date();
-  let month = now.getMonth();
-
-  if (lastReset != month) {
-    for (let house in houses) {
-      houses[house].forEach(room => {
-        if (room.rent) {
-          room.paid = false;
-        }
-      });
-    }
-    localStorage.setItem("lastReset", month);
-    save();
-  }
+  return today > t.due;
 }
 
 function addHouse() {
   let name = prompt("House name:");
   let type = prompt("1 = Rooms\n2 = Whole Unit");
 
+  if (!name) return;
+
   if (type == "1") {
     let rooms = prompt("Number of rooms:");
-    houses[name] = Array(parseInt(rooms)).fill({});
-  } 
-  else if (type == "2") {
     houses[name] = {
-      whole: true,
-      tenant: {}
+      type: "room",
+      data: Array(parseInt(rooms)).fill({})
+    };
+  } else {
+    houses[name] = {
+      type: "whole",
+      data: {}
     };
   }
 
   save();
   render();
 }
-  if (name && rooms) {
-    houses[name] = Array(parseInt(rooms)).fill({});
-    save();
-    render();
-  }
-}
 
 function deleteHouse(name) {
   if (confirm("Delete " + name + "?")) {
     delete houses[name];
+    delete contracts[name];
     save();
     render();
   }
 }
 
 function render() {
-  monthlyReset(); // 🔥 自动每月reset
-
   let app = document.getElementById("app");
-  let report = document.getElementById("report");
+  let summary = document.getElementById("summary");
+  let analysis = document.getElementById("analysis");
 
   app.innerHTML = "";
-  report.innerHTML = "";
+  summary.innerHTML = "";
+  analysis.innerHTML = "";
 
   let total = 0;
-  let houseIncome = {};
 
-  for (let house in houses) {
+  let roomIncome = 0;
+  let wholeIncome = 0;
+
+  for (let h in houses) {
+
+    let house = houses[h];
+
     let div = document.createElement("div");
     div.className = "house";
 
     let title = document.createElement("h3");
-    title.innerText = house + " ❌";
-    title.onclick = () => deleteHouse(house);
+    title.innerText = h + " ❌";
+    title.onclick = () => deleteHouse(h);
     div.appendChild(title);
 
-    let houseTotal = 0;
+    // 📑 CONTRACT INFO
+    let c = contracts[h] || {};
+    let contractText = document.createElement("div");
+    contractText.innerHTML =
+      "📑 Start: " + (c.start || "-") +
+      "<br>📅 End: " + (c.end || "-");
 
-    houses[house].forEach((room, i) => {
+    div.appendChild(contractText);
+
+    // 🏠 ROOM MODE
+    if (house.type == "room") {
+
+      house.data.forEach((r, i) => {
+
+        let btn = document.createElement("div");
+
+        if (!r.rent) {
+          btn.className = "room available";
+          btn.innerText = "Room " + (i+1);
+        } else {
+          let late = isLate(r);
+          btn.className = "room " + (late ? "late" : "paid");
+
+          btn.innerText =
+            "Room " + (i+1) +
+            "\n👤 " + r.name +
+            "\n💰 RM" + r.rent +
+            "\n📅 " + r.due +
+            (r.paid ? "\n✅" : (late ? "\n⚠️ LATE" : "\n⏳"));
+
+          if (r.paid) roomIncome += r.rent;
+        }
+
+        btn.onclick = () => {
+
+          if (!r.rent) {
+            let name = prompt("Tenant name:");
+            let rent = prompt("Rent:");
+            let due = prompt("Due day:");
+
+            if (name && rent && due) {
+              house.data[i] = {
+                name, rent: parseFloat(rent),
+                due: parseInt(due),
+                paid: false
+              };
+
+              let start = new Date().toLocaleDateString();
+              contracts[h] = {
+                start: start,
+                end: "Active"
+              };
+            }
+          } else {
+            let a = prompt("1=Paid\n2=Unpaid\n3=Remove");
+
+            if (a == "1") r.paid = true;
+            if (a == "2") r.paid = false;
+            if (a == "3") house.data[i] = {};
+          }
+
+          save();
+          render();
+        };
+
+        div.appendChild(btn);
+      });
+    }
+
+    // 🏠 WHOLE UNIT
+    else {
+
+      let t = house.data;
       let btn = document.createElement("div");
-      let occupied = room.rent > 0;
 
-      if (!occupied) {
+      if (!t.rent) {
         btn.className = "room available";
-        btn.innerText = "Room " + (i+1);
+        btn.innerText = "Whole Unit";
       } else {
-        let late = isLate(room);
+
+        let late = isLate(t);
         btn.className = "room " + (late ? "late" : "paid");
 
         btn.innerText =
-          "Room " + (i+1) +
-          "\\n👤 " + room.name +
-          "\\n💰 RM" + room.rent +
-          "\\n📅 " + room.due +
-          (room.paid ? "\\n✅" : (late ? "\\n⚠️ LATE" : "\\n⏳"));
+          "Whole Unit" +
+          "\n👤 " + t.name +
+          "\n💰 RM" + t.rent +
+          "\n📅 " + t.due +
+          (t.paid ? "\n✅" : (late ? "\n⚠️ LATE" : "\n⏳"));
 
-        total += room.rent;
-        houseTotal += room.rent;
+        if (t.paid) wholeIncome += t.rent;
       }
 
       btn.onclick = () => {
-        if (!occupied) {
-          let name = prompt("Tenant name:");
-          let rent = prompt("Rent (RM):");
+
+        if (!t.rent) {
+          let name = prompt("Tenant:");
+          let rent = prompt("Rent:");
           let due = prompt("Due day:");
 
           if (name && rent && due) {
-            houses[house][i] = {
-              name: name,
-              rent: parseFloat(rent),
+            house.data = {
+              name, rent: parseFloat(rent),
               due: parseInt(due),
               paid: false
             };
+
+            contracts[h] = {
+              start: new Date().toLocaleDateString(),
+              end: "Active"
+            };
           }
         } else {
-          let action = prompt("1=Paid\\n2=Unpaid\\n3=Remove");
+          let a = prompt("1=Paid\n2=Unpaid\n3=Remove");
 
-          if (action == "1") room.paid = true;
-          if (action == "2") room.paid = false;
-          if (action == "3") houses[house][i] = {};
+          if (a == "1") t.paid = true;
+          if (a == "2") t.paid = false;
+          if (a == "3") house.data = {};
         }
 
         save();
@@ -229,29 +244,25 @@ function render() {
       };
 
       div.appendChild(btn);
-    });
+    }
 
-    houseIncome[house] = houseTotal;
     app.appendChild(div);
   }
 
-  // 📊 收入分析
-  let topHouse = "";
-  let max = 0;
+  // 📊 SUMMARY
+  summary.innerHTML =
+    "📊 Room Income: RM" + roomIncome +
+    "<br>🏠 Whole Unit Income: RM" + wholeIncome +
+    "<br>💰 Total: RM" + (roomIncome + wholeIncome);
 
-  for (let h in houseIncome) {
-    report.innerHTML += h + ": RM" + houseIncome[h] + "<br>";
-    if (houseIncome[h] > max) {
-      max = houseIncome[h];
-      topHouse = h;
-    }
+  // ⚖️ ANALYSIS
+  if (roomIncome > wholeIncome) {
+    analysis.innerHTML = "📈 分房更赚钱";
+  } else if (wholeIncome > roomIncome) {
+    analysis.innerHTML = "📈 整租更赚钱";
+  } else {
+    analysis.innerHTML = "⚖️ 两者差不多";
   }
-
-  if (topHouse) {
-    report.innerHTML += "<br>🔥 Top: " + topHouse;
-  }
-
-  document.getElementById("total").innerText = "💰 Total: RM" + total;
 }
 
 render();
